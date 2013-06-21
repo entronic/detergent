@@ -32,7 +32,7 @@
 
 -include_lib("detergent.hrl").
 
--define(HTTP_REQ_TIMEOUT, 20000).
+-define(HTTP_REQ_TIMEOUT, 120000).
 
 %%-define(dbg(X,Y),
 %%        error_logger:info_msg("*dbg ~p(~p): " X,
