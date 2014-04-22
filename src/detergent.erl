@@ -14,7 +14,7 @@
      config_file_xsd/0,
      call/3, call/4, call/5, call/6, call/7,
      call_attach/4, call_attach/5, call_attach/6, call_attach/8,
-     write_hrl/2, write_hrl/3,
+     write_hrl/1,write_hrl/2, write_hrl/3,
      findHeader/2,
      parseMessage/2,
      makeFault/2,
@@ -53,6 +53,10 @@ write_hrl(WsdlURL, Output) when is_list(WsdlURL) ->
     write_hrl(initModel(WsdlURL), Output);
 write_hrl(#wsdl{model = Model}, Output) when is_list(Output) ->
     erlsom:write_hrl(Model, Output).
+
+write_hrl(#wsdl{model = Model})->
+    [Header|[Contentpart|_]] = erlsom_writeHrl:writeHrl(Model),
+	Header ++ string:join(Contentpart," ").
 
 write_hrl(WsdlURL, Output, Prefix) when is_list(WsdlURL),is_list(Prefix) ->
     write_hrl(initModel(WsdlURL, Prefix), Output).
@@ -315,7 +319,7 @@ initModel2(WsdlFile, Prefix, Path, Import, AddFiles) ->
     %% add the xsd model (since xsd is also used in the wsdl)
     WsdlModel2 = erlsom:add_xsd_model(WsdlModel),
     IncludeDir = case WsdlFile of
-							  {local,Content} ->
+							  {local,_} ->
 								  ".";
 							  _ ->
 								  filename:dirname(WsdlFile)
