@@ -22,7 +22,7 @@
      wsdl_op_port/1, wsdl_op_operation/1,
      wsdl_op_binding/1, wsdl_op_address/1,
      wsdl_op_action/1, wsdl_operations/1,
-     get_operation/2
+     get_operation/2,get_url_content/1
     ]).
 
 
@@ -314,7 +314,12 @@ initModel2(WsdlFile, Prefix, Path, Import, AddFiles) ->
                            {include_files, [IncludeWsdl]}]),
     %% add the xsd model (since xsd is also used in the wsdl)
     WsdlModel2 = erlsom:add_xsd_model(WsdlModel),
-    IncludeDir = filename:dirname(WsdlFile),
+    IncludeDir = case WsdlFile of
+							  {local,Content} ->
+								  ".";
+							  _ ->
+								  filename:dirname(WsdlFile)
+						  end,
     Options = [{dir_list, [IncludeDir]} | makeOptions(Import)],
     %% parse Wsdl
     {Model, Operations} = parseWsdls([WsdlFile], Prefix, WsdlModel2, Options, {undefined, []}),
@@ -334,7 +339,12 @@ initModel2(WsdlFile, Prefix, Path, Import, AddFiles) ->
 parseWsdls([], _Prefix, _WsdlModel, _Options, Acc) ->
   Acc;
 parseWsdls([WsdlFile | Tail], Prefix, WsdlModel, Options, {AccModel, AccOperations}) ->
-  {ok, WsdlFileContent} = get_url_file(rmsp(WsdlFile)),
+  {ok, WsdlFileContent} = case WsdlFile of
+							  {local,Content} ->
+								  {ok,Content};
+							  _ ->
+								  get_url_file(rmsp(WsdlFile))
+						  end,
   {ok, ParsedWsdl, _} = erlsom:scan(WsdlFileContent, WsdlModel),
   %% get the xsd elements from this model, and hand it over to erlsom_compile.
   Xsds = getXsdsFromWsdl(ParsedWsdl),
@@ -389,20 +399,36 @@ addSchemas([Xsd| Tail], AccModel, Prefix, Options, ImportList) ->
            end,
   addSchemas(Tail, Model2, Prefix, Options, ImportList).
 
+%%%-------------------------------------------------------------------------
+%%% Functions to help with retrieving content from URL
+%%%-------------------------------------------------------------------------
+get_url_content({Address}) ->
+	get_url_content({get,Address,[],[]});
+get_url_content({Type,Address,WebArgs,WebAuths}) ->	
+	Webresponse = case Type of
+		get ->
+			ibrowse:send_req(Address, [], get,WebArgs,WebAuths);
+		post ->
+			ibrowse:send_req(Address, [], post,WebArgs,WebAuths)
+	end,
+	case Webresponse of
+		{ok, "200", _, Content} ->
+			{ok,Content};
+		{ibrowse_req_id, Term} ->
+			error_logger:error_msg("~p: http-request got: ~p~n", [?MODULE, Term]),
+			{error,{{ibrowse_req_id, Term}}};
+		{error, Reason} ->
+			error_logger:error_msg("~p: http-request failed: ~p~n", [?MODULE, Reason]),
+			{error,Reason}
+	end.
+
 %%% --------------------------------------------------------------------
 %%% Get a file from an URL spec.
 %%% --------------------------------------------------------------------
 get_url_file("http://"++_ = URL) ->
-    case httpc:request(URL) of
-    {ok,{{_HTTP,200,_OK}, _Headers, Body}} ->
-        {ok, Body};
-    {ok,{{_HTTP,RC,Emsg}, _Headers, _Body}} ->
-        error_logger:error_msg("~p: http-request got: ~p~n", [?MODULE, {RC, Emsg}]),
-        {error, "failed to retrieve: "++URL};
-    {error, Reason} ->
-        error_logger:error_msg("~p: http-request failed: ~p~n", [?MODULE, Reason]),
-        {error, "failed to retrieve: "++URL}
-    end;
+    get_url_content({URL});
+get_url_file("https://"++_ = URL) ->
+    get_url_content({URL});
 get_url_file("file://"++Fname) ->
     {ok, Bin} = file:read_file(Fname),
     {ok, binary_to_list(Bin)};
