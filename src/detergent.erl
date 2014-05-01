@@ -394,8 +394,7 @@ addSchemas([Xsd| Tail], AccModel, Prefix, Options, ImportList) ->
              _ ->
                {ok, Model} =
                  erlsom_compile:compile_parsed_xsd(Xsd,
-                                                   [{prefix, Prefix},
-                                                    {include_files, ImportList} |Options]),
+                                                   [{include_files, ImportList} |Options]),
                case AccModel of
                  undefined -> Model;
                  _ -> erlsom:add_model(AccModel, Model)
